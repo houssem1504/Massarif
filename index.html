@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gestionnaire de Dépenses</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0284c7">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dépenses">
+    <link rel="icon" href="icon-192.png" type="image/png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Base Dynamic Fonts */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .font-poppins { font-family: 'Poppins', sans-serif; }
+        .font-roboto { font-family: 'Roboto', sans-serif; }
+        .font-inter { font-family: 'Inter', sans-serif; }
+
+        /* Font Sizes Driven by HTML Data Attribute */
+        html[data-font-size="sm"] { font-size: 14px; }
+        html[data-font-size="md"] { font-size: 16px; }
+        html[data-font-size="lg"] { font-size: 18px; }
+
+        /* Single-scroll-context layout: avoids the Android WebView
+           nested-scroll bug (scroll gets "stuck" and won't go back up
+           after scrolling down inside a nested overflow-y:auto div).
+           The <body> itself is now the only scrollable element. */
+        html, body {
+            width: 100%;
+            min-height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #0f172a;
+            overflow-x: hidden;
+            overscroll-behavior-y: none;
+        }
+
+        /* Clean scrollbar for smooth feel on Android WebView */
+        body::-webkit-scrollbar {
+            width: 4px;
+        }
+        body::-webkit-scrollbar-thumb {
+            background-color: rgba(156, 163, 175, 0.4);
+            border-radius: 4px;
+        }
+
+        /* Subtle Animations */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.25s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-gray-800 dark:text-gray-100 flex justify-center w-full min-h-full">
+
+    <!-- App Container Frame -->
+    <div id="app-wrapper" class="w-full max-w-md min-h-full flex flex-col bg-white dark:bg-gray-800 shadow-2xl relative">
+
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-sky-600 to-blue-700 text-white p-4 shadow-md flex items-center justify-between shrink-0 sticky top-0 z-10">
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <div class="p-2 bg-white/20 rounded-xl">
+                    <i class="fas font-bold fa-wallet text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold leading-tight">Mes Dépenses</h1>
+                    <p class="text-xs text-sky-100 opacity-90" id="current-month-display">Chargement...</p>
+                </div>
+            </div>
+            
+            <button id="theme-toggle-btn" class="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-all text-white focus:outline-none">
+                <i class="fas fa-moon text-lg" id="theme-icon"></i>
+            </button>
+        </header>
+
+        <!-- Main Body Content Area -->
+        <main class="p-4 pb-24 space-y-4" id="main-container">
+
+            <!-- TAB 1: SAISIE DES DÉPENSES -->
+            <section id="tab-saisie" class="tab-content active space-y-4">
+                <div class="bg-slate-50 dark:bg-gray-700/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <h2 class="text-base font-bold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+                        <i class="fas fa-plus-circle text-sky-600 dark:text-sky-400"></i>
+                        Nouvelle Dépense
+                    </h2>
+
+                    <form id="expense-form" class="space-y-4">
+                        <!-- Montant -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Montant (DZD / € / $)</label>
+                            <div class="relative">
+                                <input type="number" step="0.01" min="0.01" id="input-amount" required placeholder="0.00" 
+                                    class="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl text-lg font-bold text-sky-600 dark:text-sky-400 focus:ring-2 focus:ring-sky-500 outline-none transition-all">
+                                <i class="fas fa-coins absolute left-3 top-4 text-gray-400"></i>
+                            </div>
+                        </div>
+
+                        <!-- Catégorie -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Catégorie</label>
+                            <div class="relative">
+                                <select id="input-category" required class="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none appearance-none transition-all">
+                                    <!-- Options dynamic -->
+                                </select>
+                                <i class="fas fa-tags absolute left-3 top-3.5 text-gray-400"></i>
+                                <i class="fas fa-chevron-down absolute right-3 top-3.5 text-gray-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+
+                        <!-- Description / Libellé -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Description / Service</label>
+                            <div class="relative">
+                                <input type="text" id="input-description" required placeholder="ex: Achats fruits, Essence..." 
+                                    class="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-all">
+                                <i class="fas fa-shopping-basket absolute left-3 top-3.5 text-gray-400"></i>
+                            </div>
+                        </div>
+
+                        <!-- Date -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Date</label>
+                            <div class="relative">
+                                <input type="date" id="input-date" required 
+                                    class="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none transition-all">
+                                <i class="fas fa-calendar-alt absolute left-3 top-3.5 text-gray-400"></i>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full py-3.5 bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-lg shadow-sky-500/30 flex items-center justify-center gap-2 transition-all">
+                            <i class="fas fa-check-circle"></i>
+                            Enregistrer la dépense
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Dernières opérations rapide -->
+                <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Dernières saisies</h3>
+                    <div id="recent-expenses-list" class="space-y-2">
+                        <!-- Dynamique -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: HISTORIQUE COMPLET DE TOUTES LES DÉPENSES -->
+            <section id="tab-historique" class="tab-content space-y-4">
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
+                    <h2 class="text-base font-bold text-gray-800 dark:text-white flex items-center justify-between">
+                        <span><i class="fas fa-history text-sky-600 dark:text-sky-400 mr-2"></i>Historique des opérations</span>
+                        <span id="history-count" class="text-xs bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300 font-bold px-2.5 py-1 rounded-full">0</span>
+                    </h2>
+
+                    <!-- Barre de Recherche et Filtres -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div class="relative">
+                            <input type="text" id="history-search" placeholder="Rechercher..." 
+                                class="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-xs outline-none focus:ring-2 focus:ring-sky-500">
+                            <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+                        </div>
+                        <div class="relative">
+                            <select id="history-category-filter" class="w-full pl-8 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-xs outline-none focus:ring-2 focus:ring-sky-500 appearance-none">
+                                <option value="ALL">Toutes les catégories</option>
+                                <!-- Categories filter dynamically populated -->
+                            </select>
+                            <i class="fas fa-filter absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Liste complète des transactions -->
+                <div id="full-history-list" class="space-y-2">
+                    <!-- Dynamique -->
+                </div>
+            </section>
+
+            <!-- TAB 3: STATISTIQUES & BUDGET -->
+            <section id="tab-stats" class="tab-content space-y-4">
+                <!-- Filtre de Mois -->
+                <div class="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-2xl border border-gray-200 dark:border-gray-700">
+                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">Période d'analyse:</span>
+                    <input type="month" id="stats-month-filter" class="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-1.5 text-xs font-bold text-sky-600 dark:text-sky-400 outline-none">
+                </div>
+
+                <!-- Résumé Global -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-2xl text-white shadow-md">
+                        <p class="text-xs text-blue-100 font-medium">Budget Total</p>
+                        <p class="text-lg font-bold mt-1" id="stat-total-budget">0.00</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-rose-500 to-pink-600 p-4 rounded-2xl text-white shadow-md">
+                        <p class="text-xs text-rose-100 font-medium">Dépenses du mois</p>
+                        <p class="text-lg font-bold mt-1" id="stat-total-spent">0.00</p>
+                    </div>
+                </div>
+
+                <div class="bg-sky-50 dark:bg-gray-700/40 p-4 rounded-2xl border border-sky-100 dark:border-gray-700 flex justify-between items-center">
+                    <div>
+                        <p class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Reste Global disponible</p>
+                        <p class="text-xl font-black text-sky-600 dark:text-sky-400 mt-0.5" id="stat-total-remaining">0.00</p>
+                    </div>
+                    <div class="text-right">
+                        <span id="stat-consumption-rate" class="inline-block px-2.5 py-1 text-xs font-bold rounded-full bg-sky-200 dark:bg-sky-900 text-sky-800 dark:text-sky-200">0%</span>
+                    </div>
+                </div>
+
+                <!-- Indication d'interaction -->
+                <p class="text-xs text-gray-500 dark:text-gray-400 text-center italic">
+                    <i class="fas fa-hand-pointer mr-1"></i> Cliquez sur une carte pour voir le détail des dépenses.
+                </p>
+
+                <!-- Cards par Catégorie -->
+                <div id="category-stats-cards" class="space-y-3">
+                    <!-- Dynamique -->
+                </div>
+
+                <!-- Options d'Exportation -->
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-2">
+                    <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">Partager / Exporter Rapport</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="export-excel-btn" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all">
+                            <i class="fas fa-file-excel text-sm"></i> Excel (CSV)
+                        </button>
+                        <button id="export-pdf-btn" class="py-2.5 px-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all">
+                            <i class="fas fa-file-pdf text-sm"></i> Imprimer / PDF
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: PARAMÈTRES & CATÉGORIES -->
+            <section id="tab-settings" class="tab-content space-y-4">
+                <!-- Gestion des Catégories -->
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            <i class="fas fa-list-alt text-sky-600 dark:text-sky-400"></i>
+                            Catégories & Budgets
+                        </h2>
+                        <button id="open-add-category-btn" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm">
+                            <i class="fas fa-plus"></i> Ajouter
+                        </button>
+                    </div>
+
+                    <!-- Categories List -->
+                    <div id="categories-list" class="space-y-2">
+                        <!-- Dynamic Categories -->
+                    </div>
+                </div>
+
+                <!-- Sauvegarde et Restauration Database (Import / Export JSON) -->
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-3">
+                    <h2 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fas fa-database text-amber-500"></i>
+                        Sauvegarde & Restauration
+                    </h2>
+                    <p class="text-xs text-gray-600 dark:text-gray-300">
+                        Exportez l'ensemble de vos données sur votre téléphone pour les conserver ou les transférer vers un autre appareil.
+                    </p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="export-json-btn" class="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all">
+                            <i class="fas fa-download"></i> Exporter (JSON)
+                        </button>
+                        
+                        <label class="py-2.5 px-3 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all">
+                            <i class="fas fa-upload"></i> Importer
+                            <input type="file" id="import-json-file" accept=".json" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- App Preferences -->
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-3">
+                    <h2 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Préférences d'affichage
+                    </h2>
+
+                    <!-- Font Family -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold">Police de texte</span>
+                        <select id="setting-font-family" class="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-1.5 text-xs font-medium outline-none">
+                            <option value="Inter">Inter (Par défaut)</option>
+                            <option value="Poppins">Poppins</option>
+                            <option value="Roboto">Roboto</option>
+                        </select>
+                    </div>
+
+                    <!-- Font Size -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold">Taille du texte</span>
+                        <select id="setting-font-size" class="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-1.5 text-xs font-medium outline-none">
+                            <option value="sm">Petite</option>
+                            <option value="md">Moyenne</option>
+                            <option value="lg">Grande</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Navigation Footer Menu (4 Tabs) -->
+        <nav class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-around items-center p-2 fixed bottom-0 left-0 right-0 w-full max-w-md mx-auto z-20">
+            <button data-tab="tab-saisie" class="nav-btn active flex flex-col items-center p-1.5 text-sky-600 dark:text-sky-400 transition-colors">
+                <i class="fas fa-plus-circle text-lg"></i>
+                <span class="text-[10px] font-bold mt-0.5">Saisie</span>
+            </button>
+
+            <button data-tab="tab-historique" class="nav-btn flex flex-col items-center p-1.5 text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors">
+                <i class="fas fa-history text-lg"></i>
+                <span class="text-[10px] font-bold mt-0.5">Historique</span>
+            </button>
+
+            <button data-tab="tab-stats" class="nav-btn flex flex-col items-center p-1.5 text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors">
+                <i class="fas fa-chart-pie text-lg"></i>
+                <span class="text-[10px] font-bold mt-0.5">Stats</span>
+            </button>
+
+            <button data-tab="tab-settings" class="nav-btn flex flex-col items-center p-1.5 text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors">
+                <i class="fas fa-cog text-lg"></i>
+                <span class="text-[10px] font-bold mt-0.5">Réglages</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <!-- Modal: Modif / Detail Dépense -->
+    <div id="modal-edit-expense" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3">
+                <h3 class="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                    <i class="fas fa-edit text-sky-600"></i> Modifier la dépense
+                </h3>
+                <button id="close-modal-edit-expense" class="text-gray-400 hover:text-gray-600 p-1">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <form id="edit-expense-form" class="space-y-3">
+                <input type="hidden" id="edit-expense-id">
+                
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Montant</label>
+                    <input type="number" step="0.01" min="0.01" id="edit-expense-amount" required
+                        class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-sm font-bold">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Catégorie</label>
+                    <select id="edit-expense-category" required class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-xs font-medium">
+                        <!-- Populated dynamic -->
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Description / Service</label>
+                    <input type="text" id="edit-expense-description" required
+                        class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-xs">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Date</label>
+                    <input type="date" id="edit-expense-date" required
+                        class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-xs">
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" id="delete-expense-btn" class="w-1/3 py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded-xl text-xs transition-colors">
+                        Supprimer
+                    </button>
+                    <button type="submit" class="w-2/3 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs shadow-md transition-all">
+                        Mettre à jour
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add/Edit Category -->
+    <div id="modal-category" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3">
+                <h3 class="text-sm font-bold text-gray-800 dark:text-white" id="modal-category-title">Nouvelle Catégorie</h3>
+                <button id="close-modal-category" class="text-gray-400 hover:text-gray-600 p-1">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <form id="category-form" class="space-y-3">
+                <input type="hidden" id="category-id">
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Nom de la catégorie</label>
+                    <input type="text" id="category-name" required placeholder="ex: Carburant, Légumes..." class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-xs">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Budget Mensuel</label>
+                    <input type="number" step="0.01" min="0" id="category-budget" required placeholder="0.00" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-xs font-bold">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Couleur</label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" id="category-color" value="#0284c7" class="h-9 w-12 rounded-lg cursor-pointer border-0 bg-transparent">
+                        <span class="text-xs text-gray-500">Choisissez une couleur</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" id="close-modal-category-btn" class="w-1/2 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold rounded-xl text-xs">Annuler</button>
+                    <button type="submit" class="w-1/2 py-2 bg-sky-600 text-white font-bold rounded-xl text-xs shadow-md">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Category Expenses List Details -->
+    <div id="modal-category-details" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4 max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3 shrink-0">
+                <div class="flex items-center gap-2">
+                    <span id="modal-cat-detail-color" class="w-3 h-3 rounded-full"></span>
+                    <h3 class="text-sm font-bold text-gray-800 dark:text-white" id="modal-cat-detail-title">Dépenses du mois</h3>
+                </div>
+                <button id="close-modal-cat-details" class="text-gray-400 hover:text-gray-600 p-1">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <div class="overflow-y-auto flex-1 space-y-2 pr-1" id="modal-cat-detail-list">
+                <!-- Dynamique -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Default Base Categories
+        const DEFAULT_CATEGORIES = [
+            { id: 'cat-1', name: 'Alimentation & Fruits', budget: 30000, color: '#10b981', icon: 'fa-shopping-basket' },
+            { id: 'cat-2', name: 'Carburant & Transport', budget: 10000, color: '#f59e0b', icon: 'fa-car' },
+            { id: 'cat-3', name: 'Factures & Loyer', budget: 25000, color: '#ef4444', icon: 'fa-file-invoice' },
+            { id: 'cat-4', name: 'Santé & Pharmacie', budget: 8000, color: '#06b6d4', icon: 'fa-heartbeat' },
+            { id: 'cat-5', name: 'Loisirs & Divers', budget: 12000, color: '#8b5cf6', icon: 'fa-smile' }
+        ];
+
+        // Global State
+        let state = {
+            expenses: [],
+            categories: [],
+            settings: {
+                theme: 'light',
+                fontFamily: 'Inter',
+                fontSize: 'md'
+            }
+        };
+
+        function loadData() {
+            try {
+                const savedExp = localStorage.getItem('depenses_app_expenses');
+                const savedCat = localStorage.getItem('depenses_app_categories');
+                const savedSet = localStorage.getItem('depenses_app_settings');
+
+                state.expenses = savedExp ? JSON.parse(savedExp) : [];
+                state.categories = savedCat ? JSON.parse(savedCat) : DEFAULT_CATEGORIES;
+                if (savedSet) {
+                    state.settings = { ...state.settings, ...JSON.parse(savedSet) };
+                }
+            } catch(e) {
+                console.error("Erreur de chargement LocalStorage:", e);
+                state.categories = DEFAULT_CATEGORIES;
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('depenses_app_expenses', JSON.stringify(state.expenses));
+            localStorage.setItem('depenses_app_categories', JSON.stringify(state.categories));
+            localStorage.setItem('depenses_app_settings', JSON.stringify(state.settings));
+        }
+
+        function applySettings() {
+            // Theme
+            if (state.settings.theme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.getElementById('theme-icon').className = 'fas fa-sun text-amber-400 text-lg';
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('theme-icon').className = 'fas fa-moon text-lg';
+            }
+
+            // Font Family
+            document.body.className = document.body.className.replace(/font-\w+/g, '');
+            document.body.classList.add(`font-${state.settings.fontFamily.toLowerCase()}`);
+            document.getElementById('setting-font-family').value = state.settings.fontFamily;
+
+            // Font Size Fix
+            document.documentElement.setAttribute('data-font-size', state.settings.fontSize || 'md');
+            document.getElementById('setting-font-size').value = state.settings.fontSize || 'md';
+        }
+
+        function populateCategoryDropdowns() {
+            const expenseSelect = document.getElementById('input-category');
+            const historyFilterSelect = document.getElementById('history-category-filter');
+            const editExpenseSelect = document.getElementById('edit-expense-category');
+
+            let optionsHtml = '';
+            state.categories.forEach(cat => {
+                optionsHtml += `<option value="${cat.id}">${cat.name}</option>`;
+            });
+
+            expenseSelect.innerHTML = optionsHtml;
+            editExpenseSelect.innerHTML = optionsHtml;
+
+            historyFilterSelect.innerHTML = `<option value="ALL">Toutes les catégories</option>` + optionsHtml;
+        }
+
+        function renderRecentExpenses() {
+            const list = document.getElementById('recent-expenses-list');
+            const sorted = [...state.expenses].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+
+            if (sorted.length === 0) {
+                list.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-2">Aucune dépense enregistrée.</p>`;
+                return;
+            }
+
+            list.innerHTML = sorted.map(exp => {
+                const cat = state.categories.find(c => c.id === exp.categoryId) || { name: 'Autre', color: '#64748b' };
+                return `
+                    <div onclick="openEditExpenseModal('${exp.id}')" class="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-sky-50 dark:hover:bg-gray-700 cursor-pointer transition-all border border-gray-100 dark:border-gray-700">
+                        <div class="flex items-center gap-2.5 overflow-hidden">
+                            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${cat.color}"></span>
+                            <div class="truncate">
+                                <p class="text-xs font-bold text-gray-800 dark:text-white truncate">${exp.description}</p>
+                                <p class="text-[10px] text-gray-400">${exp.date} • ${cat.name}</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-black text-rose-600 dark:text-rose-400 shrink-0 ml-2">-${parseFloat(exp.amount).toFixed(2)}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderHistoryTab() {
+            const historyList = document.getElementById('full-history-list');
+            const historyCount = document.getElementById('history-count');
+            const searchTerm = document.getElementById('history-search').value.toLowerCase().trim();
+            const categoryFilter = document.getElementById('history-category-filter').value;
+
+            let filtered = [...state.expenses].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            if (categoryFilter !== 'ALL') {
+                filtered = filtered.filter(exp => exp.categoryId === categoryFilter);
+            }
+
+            if (searchTerm) {
+                filtered = filtered.filter(exp => 
+                    exp.description.toLowerCase().includes(searchTerm) || 
+                    exp.amount.toString().includes(searchTerm) ||
+                    exp.date.includes(searchTerm)
+                );
+            }
+
+            historyCount.textContent = filtered.length;
+
+            if (filtered.length === 0) {
+                historyList.innerHTML = `
+                    <div class="text-center py-8 text-gray-400 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+                        <i class="fas fa-folder-open text-3xl mb-2 opacity-50"></i>
+                        <p class="text-xs font-medium">Aucune opération trouvée.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            historyList.innerHTML = filtered.map(exp => {
+                const cat = state.categories.find(c => c.id === exp.categoryId) || { name: 'Autre', color: '#64748b' };
+                return `
+                    <div class="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-sky-300 dark:hover:border-sky-600 transition-all">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white font-bold text-xs" style="background-color: ${cat.color}">
+                                ${cat.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div class="truncate">
+                                <p class="text-xs font-bold text-gray-800 dark:text-white truncate">${exp.description}</p>
+                                <p class="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
+                                    <span>${exp.date}</span>
+                                    <span>•</span>
+                                    <span class="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 font-semibold" style="color: ${cat.color}">${cat.name}</span>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0 ml-2">
+                            <span class="text-xs font-black text-rose-600 dark:text-rose-400">-${parseFloat(exp.amount).toFixed(2)}</span>
+                            <button onclick="openEditExpenseModal('${exp.id}')" class="p-1.5 text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                <i class="fas fa-pen text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderStatsTab() {
+            const selectedMonth = document.getElementById('stats-month-filter').value;
+            const monthExpenses = state.expenses.filter(exp => exp.date.startsWith(selectedMonth));
+
+            let totalBudget = 0;
+            let totalSpent = 0;
+
+            state.categories.forEach(c => totalBudget += parseFloat(c.budget || 0));
+            monthExpenses.forEach(e => totalSpent += parseFloat(e.amount || 0));
+
+            const totalRemaining = totalBudget - totalSpent;
+            const consumptionPercent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+
+            document.getElementById('stat-total-budget').textContent = totalBudget.toFixed(2);
+            document.getElementById('stat-total-spent').textContent = totalSpent.toFixed(2);
+            document.getElementById('stat-total-remaining').textContent = totalRemaining.toFixed(2);
+            document.getElementById('stat-consumption-rate').textContent = `${consumptionPercent}%`;
+
+            // Dynamic color for consumption rate
+            const rateBadge = document.getElementById('stat-consumption-rate');
+            if (consumptionPercent > 100) {
+                rateBadge.className = "inline-block px-2.5 py-1 text-xs font-bold rounded-full bg-rose-200 text-rose-900";
+            } else if (consumptionPercent > 80) {
+                rateBadge.className = "inline-block px-2.5 py-1 text-xs font-bold rounded-full bg-amber-200 text-amber-900";
+            } else {
+                rateBadge.className = "inline-block px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-200 text-emerald-900";
+            }
+
+            // Cards list by category
+            const cardsContainer = document.getElementById('category-stats-cards');
+            cardsContainer.innerHTML = state.categories.map(cat => {
+                const catSpent = monthExpenses
+                    .filter(exp => exp.categoryId === cat.id)
+                    .reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
+
+                const catBudget = parseFloat(cat.budget || 0);
+                const catRemaining = catBudget - catSpent;
+                const percent = catBudget > 0 ? Math.min(Math.round((catSpent / catBudget) * 100), 100) : 0;
+
+                return `
+                    <div onclick="openCategoryDetailsModal('${cat.id}')" 
+                        class="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:border-sky-400 dark:hover:border-sky-500 cursor-pointer transition-all">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-3 h-3 rounded-full" style="background-color: ${cat.color}"></div>
+                                <h4 class="text-xs font-bold text-gray-800 dark:text-white">${cat.name}</h4>
+                            </div>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${catRemaining >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'}">
+                                ${catRemaining >= 0 ? 'Reste: ' + catRemaining.toFixed(2) : 'Dépassement: ' + Math.abs(catRemaining).toFixed(2)}
+                            </span>
+                        </div>
+
+                        <div class="flex justify-between items-baseline text-xs mb-1.5">
+                            <span class="text-gray-500">Dépensé: <strong class="text-gray-800 dark:text-white">${catSpent.toFixed(2)}</strong></span>
+                            <span class="text-gray-400">Budget: ${catBudget.toFixed(2)}</span>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-300" style="width: ${percent}%; background-color: ${cat.color}"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderSettingsCategories() {
+            const list = document.getElementById('categories-list');
+            list.innerHTML = state.categories.map(cat => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-3.5 h-3.5 rounded-full" style="background-color: ${cat.color}"></span>
+                        <div>
+                            <p class="text-xs font-bold text-gray-800 dark:text-white">${cat.name}</p>
+                            <p class="text-[10px] text-gray-400">Budget: ${parseFloat(cat.budget).toFixed(2)}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button onclick="openCategoryModal('${cat.id}')" class="p-1.5 text-sky-600 hover:bg-sky-100 dark:hover:bg-gray-600 rounded-lg transition-colors">
+                            <i class="fas fa-edit text-xs"></i>
+                        </button>
+                        <button onclick="deleteCategory('${cat.id}')" class="p-1.5 text-rose-600 hover:bg-rose-100 dark:hover:bg-gray-600 rounded-lg transition-colors">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openCategoryDetailsModal(categoryId) {
+            const cat = state.categories.find(c => c.id === categoryId);
+            if (!cat) return;
+
+            const selectedMonth = document.getElementById('stats-month-filter').value;
+            const filteredExpenses = state.expenses.filter(exp => exp.categoryId === categoryId && exp.date.startsWith(selectedMonth));
+
+            document.getElementById('modal-cat-detail-title').textContent = `${cat.name} (${selectedMonth})`;
+            document.getElementById('modal-cat-detail-color').style.backgroundColor = cat.color;
+
+            const listContainer = document.getElementById('modal-cat-detail-list');
+
+            if (filteredExpenses.length === 0) {
+                listContainer.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-6">Aucune dépense pour ce mois dans cette catégorie.</p>`;
+            } else {
+                listContainer.innerHTML = filteredExpenses.map(exp => `
+                    <div class="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                        <div>
+                            <p class="text-xs font-bold text-gray-800 dark:text-white">${exp.description}</p>
+                            <p class="text-[10px] text-gray-400">${exp.date}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-black text-rose-600 dark:text-rose-400">-${parseFloat(exp.amount).toFixed(2)}</span>
+                            <button onclick="openEditExpenseModal('${exp.id}'); closeModal('modal-category-details');" class="p-1 text-gray-400 hover:text-sky-600">
+                                <i class="fas fa-pen text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('modal-category-details').classList.remove('hidden');
+        }
+
+        function openEditExpenseModal(expenseId) {
+            const exp = state.expenses.find(e => e.id === expenseId);
+            if (!exp) return;
+
+            document.getElementById('edit-expense-id').value = exp.id;
+            document.getElementById('edit-expense-amount').value = exp.amount;
+            document.getElementById('edit-expense-category').value = exp.categoryId;
+            document.getElementById('edit-expense-description').value = exp.description;
+            document.getElementById('edit-expense-date').value = exp.date;
+
+            document.getElementById('modal-edit-expense').classList.remove('hidden');
+        }
+
+        function openCategoryModal(catId = null) {
+            if (catId) {
+                const cat = state.categories.find(c => c.id === catId);
+                if (!cat) return;
+                document.getElementById('modal-category-title').textContent = "Modifier la catégorie";
+                document.getElementById('category-id').value = cat.id;
+                document.getElementById('category-name').value = cat.name;
+                document.getElementById('category-budget').value = cat.budget;
+                document.getElementById('category-color').value = cat.color;
+            } else {
+                document.getElementById('modal-category-title').textContent = "Nouvelle catégorie";
+                document.getElementById('category-id').value = '';
+                document.getElementById('category-name').value = '';
+                document.getElementById('category-budget').value = '';
+                document.getElementById('category-color').value = '#0284c7';
+            }
+            document.getElementById('modal-category').classList.remove('hidden');
+        }
+
+        function deleteCategory(catId) {
+            if (state.categories.length <= 1) {
+                alert("Vous devez garder au moins une catégorie.");
+                return;
+            }
+            state.categories = state.categories.filter(c => c.id !== catId);
+            saveData();
+            populateCategoryDropdowns();
+            renderSettingsCategories();
+            renderStatsTab();
+            renderRecentExpenses();
+            renderHistoryTab();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function exportDatabaseJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+            const downloadAnchor = document.createElement('a');
+            const today = new Date().toISOString().split('T')[0];
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `depenses_backup_${today}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importDatabaseJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedState = JSON.parse(e.target.result);
+                    if (importedState && Array.isArray(importedState.categories) && Array.isArray(importedState.expenses)) {
+                        state = importedState;
+                        saveData();
+                        applySettings();
+                        populateCategoryDropdowns();
+                        renderRecentExpenses();
+                        renderHistoryTab();
+                        renderStatsTab();
+                        renderSettingsCategories();
+                        alert("Base de données importée avec succès !");
+                    } else {
+                        alert("Format de fichier JSON invalide.");
+                    }
+                } catch (err) {
+                    alert("Erreur lors de la lecture du fichier JSON.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function exportToCSV() {
+            if (state.expenses.length === 0) {
+                alert("Aucune donnée à exporter.");
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "Date;Description;Categorie;Montant\n";
+
+            state.expenses.forEach(exp => {
+                const cat = state.categories.find(c => c.id === exp.categoryId) || { name: 'Autre' };
+                csvContent += `"${exp.date}";"${exp.description}";"${cat.name}";"${exp.amount}"\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `rapport_depenses_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
+        window.onload = function() {
+            loadData();
+
+            // Default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('input-date').value = today;
+            document.getElementById('stats-month-filter').value = today.substring(0, 7);
+
+            // Set Header Current Month
+            const options = { month: 'long', year: 'numeric' };
+            document.getElementById('current-month-display').textContent = new Date().toLocaleDateString('fr-FR', options);
+
+            applySettings();
+            populateCategoryDropdowns();
+            renderRecentExpenses();
+            renderHistoryTab();
+            renderStatsTab();
+            renderSettingsCategories();
+
+            // Navigation Tab Switcher
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    
+                    document.querySelectorAll('.nav-btn').forEach(b => {
+                        b.classList.remove('active', 'text-sky-600', 'dark:text-sky-400');
+                        b.classList.add('text-gray-400');
+                    });
+                    this.classList.add('active', 'text-sky-600', 'dark:text-sky-400');
+                    this.classList.remove('text-gray-400');
+
+                    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+                    document.getElementById(tabId).classList.add('active');
+
+                    // Refresh Views
+                    if (tabId === 'tab-historique') renderHistoryTab();
+                    if (tabId === 'tab-stats') renderStatsTab();
+                    if (tabId === 'tab-settings') renderSettingsCategories();
+                });
+            });
+
+            // Expense Form Submit
+            document.getElementById('expense-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const amount = parseFloat(document.getElementById('input-amount').value);
+                const categoryId = document.getElementById('input-category').value;
+                const description = document.getElementById('input-description').value;
+                const date = document.getElementById('input-date').value;
+
+                const newExpense = {
+                    id: 'exp-' + Date.now(),
+                    amount,
+                    categoryId,
+                    description,
+                    date
+                };
+
+                state.expenses.push(newExpense);
+                saveData();
+
+                // Reset form
+                document.getElementById('input-amount').value = '';
+                document.getElementById('input-description').value = '';
+
+                renderRecentExpenses();
+                renderHistoryTab();
+                alert("Dépense enregistrée avec succès!");
+            });
+
+            // Edit Expense Form Submit
+            document.getElementById('edit-expense-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const expId = document.getElementById('edit-expense-id').value;
+                const exp = state.expenses.find(e => e.id === expId);
+                if (exp) {
+                    exp.amount = parseFloat(document.getElementById('edit-expense-amount').value);
+                    exp.categoryId = document.getElementById('edit-expense-category').value;
+                    exp.description = document.getElementById('edit-expense-description').value;
+                    exp.date = document.getElementById('edit-expense-date').value;
+
+                    saveData();
+                    renderRecentExpenses();
+                    renderHistoryTab();
+                    renderStatsTab();
+                    closeModal('modal-edit-expense');
+                }
+            });
+
+            // Delete Expense Button inside Modal
+            document.getElementById('delete-expense-btn').addEventListener('click', function() {
+                const expId = document.getElementById('edit-expense-id').value;
+                state.expenses = state.expenses.filter(e => e.id !== expId);
+                saveData();
+                renderRecentExpenses();
+                renderHistoryTab();
+                renderStatsTab();
+                closeModal('modal-edit-expense');
+            });
+
+            // Category Form Submit
+            document.getElementById('category-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const id = document.getElementById('category-id').value;
+                const name = document.getElementById('category-name').value;
+                const budget = parseFloat(document.getElementById('category-budget').value);
+                const color = document.getElementById('category-color').value;
+
+                if (id) {
+                    const cat = state.categories.find(c => c.id === id);
+                    if (cat) {
+                        cat.name = name;
+                        cat.budget = budget;
+                        cat.color = color;
+                    }
+                } else {
+                    state.categories.push({
+                        id: 'cat-' + Date.now(),
+                        name,
+                        budget,
+                        color,
+                        icon: 'fa-tag'
+                    });
+                }
+
+                saveData();
+                populateCategoryDropdowns();
+                renderSettingsCategories();
+                renderStatsTab();
+                closeModal('modal-category');
+            });
+
+            // History Filter & Search Events
+            document.getElementById('history-search').addEventListener('input', renderHistoryTab);
+            document.getElementById('history-category-filter').addEventListener('change', renderHistoryTab);
+
+            // Theme Toggle
+            document.getElementById('theme-toggle-btn').addEventListener('click', function() {
+                state.settings.theme = state.settings.theme === 'dark' ? 'light' : 'dark';
+                saveData();
+                applySettings();
+            });
+
+            // Preferences Change
+            document.getElementById('setting-font-family').addEventListener('change', function(e) {
+                state.settings.fontFamily = e.target.value;
+                saveData();
+                applySettings();
+            });
+
+            document.getElementById('setting-font-size').addEventListener('change', function(e) {
+                state.settings.fontSize = e.target.value;
+                saveData();
+                applySettings();
+            });
+
+            // Month Filter Change in Stats
+            document.getElementById('stats-month-filter').addEventListener('change', renderStatsTab);
+
+            // Modals Buttons
+            document.getElementById('open-add-category-btn').addEventListener('click', () => openCategoryModal());
+            document.getElementById('close-modal-category').addEventListener('click', () => closeModal('modal-category'));
+            document.getElementById('close-modal-category-btn').addEventListener('click', () => closeModal('modal-category'));
+            document.getElementById('close-modal-cat-details').addEventListener('click', () => closeModal('modal-category-details'));
+            document.getElementById('close-modal-edit-expense').addEventListener('click', () => closeModal('modal-edit-expense'));
+
+            // Database JSON Export / Import
+            document.getElementById('export-json-btn').addEventListener('click', exportDatabaseJSON);
+            document.getElementById('import-json-file').addEventListener('change', importDatabaseJSON);
+
+            // Export Actions
+            document.getElementById('export-excel-btn').addEventListener('click', exportToCSV);
+            document.getElementById('export-pdf-btn').addEventListener('click', () => window.print());
+        };
+
+        // Register PWA service worker (enables install prompt + offline use)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js').catch(() => {});
+            });
+        }
+    </script>
+</body>
+</html>
